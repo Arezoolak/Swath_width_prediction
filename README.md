@@ -12,11 +12,10 @@ Included weights:
 - narrow_fov_model.pth
 - wide_fov_model.pth
 
-Download the weights and place them inside:
+Download the weights and use them for predictions( depends on whether you prefer closer view (partial coverage) or farther view (full coverage)
 
-models/narrow_fov/
-models/wide_fov/
 
-Example usage:
 
-python inference/predict_real_images.py --weights models/narrow_fov/narrow_fov_model.pth
+requirements:
+
+in all the scripts, directory '/home/arezou/UBONTO/.." should be replaces with your own directory.
