@@ -1,71 +1,116 @@
-
+import argparse
+import os
 import torch
-import torch.nn as nn
 import numpy as np
-from transformer import SwathWidthTransformer
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Load saved test data
-data = torch.load('/home/arezou/UBONTO/my_own_projects/pytorch/pytorch-cnn/practice/classification_bird/last/test_data.pt')
-features = data['features']  # shape [N, 25, 512]
-labels = data['labels']      # shape [N, 2]
+from models.transformer_encoder import SwathWidthTransformer
 
-# Load model
+
+# =======================================================
+# ARGUMENT PARSER
+# =======================================================
+parser = argparse.ArgumentParser(description="Evaluate Swath Width Transformer Model")
+
+parser.add_argument('--test_data', type=str, default='outputs/test_data.pt',
+                    help='Path to saved test_data.pt')
+parser.add_argument('--model_path', type=str, default='outputs/best_model.pth',
+                    help='Path to trained model weights')
+parser.add_argument('--output_dir', type=str, default='evaluation_results',
+                    help='Directory to save results')
+
+args = parser.parse_args()
+
+os.makedirs(args.output_dir, exist_ok=True)
+
+# =======================================================
+# LOAD TEST DATA
+# =======================================================
+data = torch.load(args.test_data)
+
+features = data['features']  # shape [N, 25, 512]
+labels = data['labels']
+
+# =======================================================
+# LOAD MODEL
+# =======================================================
 model = SwathWidthTransformer(feature_dim=512, num_frames=25)
-model.load_state_dict(torch.load('/home/arezou/UBONTO/my_own_projects/pytorch/pytorch-cnn/practice/classification_bird/last/best_model.pth'))
+
+model.load_state_dict(torch.load(args.model_path, map_location='cpu'))
 model.eval()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
+
 features = features.to(device)
 labels = labels.to(device)
 
+# =======================================================
+# PREDICTION
+# =======================================================
 with torch.no_grad():
-    predictions = model(features)  # shape [N, 2]
+    predictions = model(features)
 
+pred_np = predictions.cpu().numpy()
+true_np = labels.cpu().numpy()
 
-# Move to CPU for numpy calculations
-pred_np = predictions.cpu().numpy()  # shape [N, 2]
-true_np = labels.cpu().numpy()       # shape [N, 2]
+# =======================================================
+# METRICS
+# =======================================================
 
 # MAE
-mae = np.mean(np.abs(pred_np - true_np), axis=0)
-print(f"🔹 MAE  : {mae}")
+mae = np.mean(np.abs(pred_np - true_np))
+print(f"🔹 MAE  : {mae:.4f}")
 
 # RMSE
-rmse = np.sqrt(np.mean((pred_np - true_np) ** 2, axis=0))
-print(f"🔹 RMSE : {rmse}")
+rmse = np.sqrt(np.mean((pred_np - true_np) ** 2))
+print(f"🔹 RMSE : {rmse:.4f}")
 
-# Bias
-bias = np.mean((pred_np - true_np)**2, axis=0)
-print(f"🔹 Bias : {bias}")
+# Bias (mean error, not squared)
+bias = np.mean(pred_np - true_np)
+print(f"🔹 Bias : {bias:.4f}")
 
 # Variance of predictions
-variance = np.var(pred_np, axis=0)
-print(f"🔹 Variance of predictions: {variance}")
+variance = np.var(pred_np)
+print(f"🔹 Variance of predictions: {variance:.4f}")
 
-
-
+# =======================================================
+# SAVE PER-SAMPLE RESULTS
+# =======================================================
 df = pd.DataFrame({
-    'true_width': true_np,
-    'pred_width': pred_np,
-
+    'true_width': true_np.flatten(),
+    'pred_width': pred_np.flatten(),
+    'error': (pred_np - true_np).flatten()
 })
 
-df.to_csv('/home/arezou/UBONTO/my_own_projects/pytorch/pytorch-cnn/practice/classification_bird/last/test_results.csv', index=False)
-print("✅ Saved per-sample predictions to test_results.csv")
+csv_path = os.path.join(args.output_dir, "test_results.csv")
+df.to_csv(csv_path, index=False)
+print(f"✅ Saved predictions to {csv_path}")
 
+# =======================================================
+# SCATTER PLOT
+# =======================================================
+plt.figure(figsize=(6, 6))
+plt.scatter(true_np, pred_np, alpha=0.6)
 
-plt.scatter(true_np, pred_np, alpha=0.7)
-plt.plot([min(true_np), max(true_np)], [min(true_np), max(true_np)], 'r--')
-plt.xlabel('True Swath Width')
-plt.ylabel('Predicted Swath Width')
+min_val = min(true_np.min(), pred_np.min())
+max_val = max(true_np.max(), pred_np.max())
+
+plt.plot([min_val, max_val], [min_val, max_val], 'r--')
+
+plt.xlabel('True Swath Width (m)')
+plt.ylabel('Predicted Swath Width (m)')
 plt.title('Prediction vs True Swath Width')
 plt.grid(True)
-plt.savefig("/home/arezou/UBONTO/my_own_projects/pytorch/pytorch-cnn/practice/classification_bird/last/scatter_plot_test.png")
-plt.show() 
 
+plot_path = os.path.join(args.output_dir, "scatter_plot_test.png")
+plt.savefig(plot_path)
+plt.close()
+
+print(f"✅ Scatter plot saved to {plot_path}")
+
+print("🎯 Evaluation completed successfully")
 
 
 
