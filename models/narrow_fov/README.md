@@ -1,4 +1,4 @@
-# Narrow Field-of-View (FOV) Model
+# ✅ Narrow Field-of-View (FOV) Model
 
 This folder corresponds to the Transformer-based deep learning model 
 trained using the **narrow FOV synthetic dataset**, where only a 
